@@ -3,6 +3,7 @@ import { Mic, Copy, Settings, Loader2, AlertCircle, Minimize2, Maximize2 } from 
 import { useInterviewStore } from '../lib/store';
 import { TranscriptionService } from '../lib/transcription';
 import { AIService } from '../lib/ai';
+import { DatabaseService } from '../lib/database';
 
 export function InterviewAssistant() {
   const {
@@ -17,6 +18,7 @@ export function InterviewAssistant() {
 
   const transcriptionRef = useRef<TranscriptionService | null>(null);
   const aiRef = useRef<AIService | null>(null);
+  const dbRef = useRef<DatabaseService | null>(null);
   const [isGenerating, setIsGenerating] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   const [currentStreamingMessage, setCurrentStreamingMessage] = useState('');
@@ -26,6 +28,8 @@ export function InterviewAssistant() {
   useEffect(() => {
     // Initialize AI service
     aiRef.current = new AIService();
+    // Initialize database service
+    dbRef.current = new DatabaseService();
 
     // Set interview context when it changes
     if (aiRef.current && interviewContext) {
@@ -44,7 +48,9 @@ export function InterviewAssistant() {
   }, [addMessage, messages, interviewContext]);
 
   const handleQuestion = async (text: string) => {
+    const timestamp = new Date();
     addMessage({ type: 'question', text });
+    dbRef.current?.saveMessage({ type: 'question', text, timestamp });
     setIsGenerating(true);
     setCurrentStreamingMessage('');
     setClarificationOptions(null);
@@ -72,6 +78,7 @@ export function InterviewAssistant() {
           setError(response);
         } else {
           addMessage({ type: 'answer', text: response });
+          dbRef.current?.saveMessage({ type: 'answer', text: response, timestamp: new Date() });
         }
       } catch (err) {
         setError('Failed to generate response. Please try again.');
@@ -84,6 +91,7 @@ export function InterviewAssistant() {
     setClarificationOptions(null);
     setIsGenerating(true);
     setCurrentStreamingMessage('');
+    dbRef.current?.saveMessage({ type: 'question', text: option, timestamp: new Date() });
 
     if (aiRef.current) {
       const context = messages.map(m => ({
@@ -99,11 +107,12 @@ export function InterviewAssistant() {
             setCurrentStreamingMessage(prev => prev + token);
           }
         );
-
+        
         if (response.startsWith('Error:')) {
           setError(response);
         } else {
           addMessage({ type: 'answer', text: response });
+          dbRef.current?.saveMessage({ type: 'answer', text: response, timestamp: new Date() });
         }
       } catch (err) {
         setError('Failed to generate response. Please try again.');
