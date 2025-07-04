@@ -5,6 +5,7 @@ import { TranscriptionService } from '../lib/transcription';
 import { AIService } from '../lib/ai';
 import { JitsiService } from '../lib/jitsi';
 import { JitsiMeeting } from '@jitsi/react-sdk';
+import { DatabaseService } from '../lib/database';
 
 export function InterviewModal() {
   const { isModalOpen, setModalOpen, setInterviewContext, isListening, messages, setIsListening, addMessage, interviewContext } = useInterviewStore();
@@ -29,6 +30,7 @@ export function InterviewModal() {
   const aiRef = useRef<AIService | null>(null);
   const jitsiContainerRef = useRef<HTMLDivElement>(null);
   const jitsiService = useRef<JitsiService | null>(null);
+  const dbRef = useRef<DatabaseService | null>(null);
 
   useEffect(() => {
     if (!isSetup && !jitsiService.current) {
@@ -39,6 +41,7 @@ export function InterviewModal() {
   useEffect(() => {
     if (!isSetup) {
       aiRef.current = new AIService();
+      dbRef.current = new DatabaseService();
       if (aiRef.current && interviewContext) {
         aiRef.current.setInterviewContext(interviewContext);
       }
@@ -53,7 +56,9 @@ export function InterviewModal() {
   }, [isSetup, addMessage, messages, interviewContext]);
 
   const handleQuestion = async (text: string) => {
+    const timestamp = new Date();
     addMessage({ type: 'question', text });
+    dbRef.current?.saveMessage({ type: 'question', text, timestamp });
     setIsGenerating(true);
     setCurrentStreamingMessage('');
     setClarificationOptions(null);
@@ -81,6 +86,7 @@ export function InterviewModal() {
           setError(response);
         } else {
           addMessage({ type: 'answer', text: response });
+          dbRef.current?.saveMessage({ type: 'answer', text: response, timestamp: new Date() });
         }
       } catch (err) {
         setError('Failed to generate response. Please try again.');
@@ -93,6 +99,7 @@ export function InterviewModal() {
     setClarificationOptions(null);
     setIsGenerating(true);
     setCurrentStreamingMessage('');
+    dbRef.current?.saveMessage({ type: 'question', text: option, timestamp: new Date() });
 
     if (aiRef.current) {
       const context = messages.map(m => ({
@@ -113,6 +120,7 @@ export function InterviewModal() {
           setError(response);
         } else {
           addMessage({ type: 'answer', text: response });
+          dbRef.current?.saveMessage({ type: 'answer', text: response, timestamp: new Date() });
         }
       } catch (err) {
         setError('Failed to generate response. Please try again.');
